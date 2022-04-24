@@ -3,16 +3,16 @@
 # This file holds global variables used by the driver.
 
 # Root directory of the repository (str)
-root = None
+root = "/home/falanke/Parboil"
 
 # Root directory of benchmark code and utilities (str)
-benchdir = None
+benchdir = "/home/falanke/Parboil/benchmarks"
 
 # Root directory of benchmark datasets
-datadir = None
+datadir = "/home/falanke/Parboil/datasets"
 
 # Benchmarks in the repository ({str:Future(Benchmark)})
-benchmarks = None
+benchmarks = "/home/falanke/Parboil/benchmarks"
 
 # Environment variables to use when spawning subprograms ({str:str})
 program_env = None

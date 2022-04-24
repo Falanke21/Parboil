@@ -40,7 +40,7 @@ def checkout_dataset():
     print "Done. You may delete %s." % datafile
 
 try:
-  checkout_dataset()
+  # checkout_dataset()
   import driver
 except ImportError:
   sys.stderr.write("Cannot run driver.  Are you running it from the parboil root directory?")
