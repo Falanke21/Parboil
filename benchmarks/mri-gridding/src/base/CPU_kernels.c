@@ -79,7 +79,7 @@ float kernel_value_LUT(float v, float* LUT, int sizeLUT, float _1overCutoff2)
   return  LUT[k0] + ((v-v0)*(LUT[k0+1]-LUT[k0])/_1overCutoff2);
 }
 
-int gridding_Gold(unsigned int n, parameters params, ReconstructionSample* sample, float* LUT, unsigned int sizeLUT, cmplx* gridData, float* sampleDensity){
+int gridding_Gold(unsigned int n, parameters params, ReconstructionSample* __restrict__ sample, float* __restrict__ LUT, unsigned int sizeLUT, cmplx* __restrict__ gridData, float* __restrict__ sampleDensity){
 
   unsigned int NxL, NxH;
   unsigned int NyL, NyH;
@@ -171,31 +171,62 @@ int gridding_Gold(unsigned int n, parameters params, ReconstructionSample* sampl
             /* loop over y indexes, but only if curent distance is close enough (distance will increase by adding y distance) */
             if(dy2dz2<cutoff2)
             {
-              for(dx2=Dx2, nx=NxL; nx<=NxH; ++nx, ++dx2)
-              {
-                /* value to evaluate kernel at */
-                v = dy2dz2+(*dx2);
+              int len = NxH - NxL + 1;
+//#pragma clang loop vectorize(enable)
+//#pragma clang loop vectorize(assume_safety)
+                for (int i = 0; i < len; ++i) {
+                    nx = NxL + i;
+//              for(dx2=Dx2, nx=NxL; nx<=NxH; ++nx, ++dx2)
+//              {
+                    /* value to evaluate kernel at */
+                    v = dy2dz2 + (*dx2);
 
-                if(v<cutoff2)
-                {
-                  /* linear index of (x,y,z) point */
-                  idx = nx + idx0;
+                    if (v < cutoff2) {
+                        /* linear index of (x,y,z) point */
+                        idx = nx + idx0;
 
-                  /* kernel weighting value */
-                  if (params.useLUT){
-        		    w = kernel_value_LUT(v, LUT, sizeLUT, _1overCutoff2) * pt.sdc;
-		          } else {
-		            w = kernel_value_CPU(beta*sqrt(1.0-(v*_1overCutoff2))) * pt.sdc;
-		          }
+                        /* kernel weighting value */
+//                  if (params.useLUT){
+//                        w = kernel_value_LUT(v, LUT, sizeLUT, _1overCutoff2) * pt.sdc;
+//		          } else {
+//		            w = kernel_value_CPU(beta*sqrt(1.0-(v*_1overCutoff2))) * pt.sdc;
+//		          }
+                        float val = beta*sqrt(1.0-(v*_1overCutoff2));
+                        float rValue = 0;
 
-                  /* grid data */
-                  gridData[idx].real += (w*pt.real);
-                  gridData[idx].imag += (w*pt.imag);
+                        const float z = val * val;
 
-                  /* estimate sample density */
-                  sampleDensity[idx] += 1.0;
+                        // polynomials taken from http://ccrma.stanford.edu/CCRMA/Courses/422/projects/kbd/kbdwindow.cpp
+                        float num = (z * (z * (z * (z * (z * (z * (z * (z * (z * (z * (z * (z * (z *
+                                                                                                 (z *
+                                                                                                  0.210580722890567e-22f +
+                                                                                                  0.380715242345326e-19f) +
+                                                                                                 0.479440257548300e-16f) +
+                                                                                            0.435125971262668e-13f) +
+                                                                                       0.300931127112960e-10f) +
+                                                                                  0.160224679395361e-7f) +
+                                                                             0.654858370096785e-5f) +
+                                                                        0.202591084143397e-2f) +
+                                                                   0.463076284721000e0f) + 0.754337328948189e2f) +
+                                                         0.830792541809429e4f) + 0.571661130563785e6f) +
+                                               0.216415572361227e8f) + 0.356644482244025e9f) +
+                                     0.144048298227235e10f);
+
+                        float den = (z * (z * (z - 0.307646912682801e4f) + 0.347626332405882e7f) -
+                                     0.144048298227235e10f);
+
+                        rValue = -num / den;
+//		            w = kernel_value_CPU() * pt.sdc;
+                        w = rValue * pt.sdc;
+
+                        /* grid data */
+                        gridData[idx].real += (w * pt.real);
+                        gridData[idx].imag += (w * pt.imag);
+
+                        /* estimate sample density */
+                        sampleDensity[idx] += 1.0;
+                    }
                 }
-              }
             }
           }
         }
