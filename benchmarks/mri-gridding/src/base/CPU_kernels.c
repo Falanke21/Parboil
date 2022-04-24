@@ -11,6 +11,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <immintrin.h>
+
 #include "UDTypes.h"
 
 #define max(x,y) ((x<y)?y:x)
@@ -172,25 +174,14 @@ int gridding_Gold(unsigned int n, parameters params, ReconstructionSample* __res
             if(dy2dz2<cutoff2)
             {
               int len = NxH - NxL + 1;
-//#pragma clang loop vectorize(enable)
-//#pragma clang loop vectorize(assume_safety)
+
                 for (int i = 0; i < len; ++i) {
                     nx = NxL + i;
-//              for(dx2=Dx2, nx=NxL; nx<=NxH; ++nx, ++dx2)
-//              {
                     /* value to evaluate kernel at */
                     v = dy2dz2 + (*dx2);
 
                     if (v < cutoff2) {
-                        /* linear index of (x,y,z) point */
                         idx = nx + idx0;
-
-                        /* kernel weighting value */
-//                  if (params.useLUT){
-//                        w = kernel_value_LUT(v, LUT, sizeLUT, _1overCutoff2) * pt.sdc;
-//		          } else {
-//		            w = kernel_value_CPU(beta*sqrt(1.0-(v*_1overCutoff2))) * pt.sdc;
-//		          }
                         float val = beta*sqrt(1.0-(v*_1overCutoff2));
                         float rValue = 0;
 
@@ -216,7 +207,6 @@ int gridding_Gold(unsigned int n, parameters params, ReconstructionSample* __res
                                      0.144048298227235e10f);
 
                         rValue = -num / den;
-//		            w = kernel_value_CPU() * pt.sdc;
                         w = rValue * pt.sdc;
 
                         /* grid data */
