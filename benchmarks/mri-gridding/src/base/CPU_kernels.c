@@ -11,7 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <immintrin.h>
+#include <altivec.h>
 
 #include "UDTypes.h"
 
@@ -179,18 +179,18 @@ int gridding_Gold(unsigned int n, parameters params, ReconstructionSample* __res
                 int stride = 4;
                 int upper_bound = len / stride * stride;
                 int i = 0;
-                __m128 vec_NxL = _mm_set1_ps(NxL);
-                __m128 vec_dy2dz2 = _mm_set1_ps(dy2dz2);
-                __m128 vec_dx2 = _mm_set1_ps(*dx2);
+                vector float vec_NxL = vec_splats(NxL);
+                vector float vec_dy2dz2 = vec_splats(dy2dz2);
+                vector float vec_dx2 = vec_splats(*dx2);
                 for (; i < upper_bound; i += stride) {
-                  __m128 vec_nx = vec_NxL + (__m128){i, i+1, i+2, i+3};
-                  __m128 vec_v = vec_dy2dz2 + vec_dx2;
+                  vector float vec_nx = vec_NxL + (vector float){i, i+1, i+2, i+3};
+                  vector float vec_v = vec_dy2dz2 + vec_dx2;
                   if (vec_v[0]<cutoff2 && vec_v[1]<cutoff2 && vec_v[2]<cutoff2 && vec_v[3]<cutoff2) 
                   {
-                    __m128 vec_idx = vec_nx + (float)idx0;
-                    __m128 vec_val = beta * _mm_sqrt_ps(1.0 - (vec_v * _1overCutoff2));
-                    __m128 vec_z = vec_val * vec_val;
-                    __m128 vec_num = (vec_z * (vec_z * (vec_z * (vec_z * (vec_z * (vec_z * (vec_z * (vec_z * (vec_z * (vec_z * (vec_z * (vec_z * (vec_z *
+                    vector float vec_idx = vec_nx + (float)idx0;
+                    vector float vec_val = beta * vec_sqrt(1.0 - (vec_v * _1overCutoff2));
+                    vector float vec_z = vec_val * vec_val;
+                    vector float vec_num = (vec_z * (vec_z * (vec_z * (vec_z * (vec_z * (vec_z * (vec_z * (vec_z * (vec_z * (vec_z * (vec_z * (vec_z * (vec_z *
                                                                                                  (vec_z *
                                                                                                   0.210580722890567e-22f +
                                                                                                   0.380715242345326e-19f) +
@@ -204,12 +204,12 @@ int gridding_Gold(unsigned int n, parameters params, ReconstructionSample* __res
                                                          0.830792541809429e4f) + 0.571661130563785e6f) +
                                                0.216415572361227e8f) + 0.356644482244025e9f) +
                                      0.144048298227235e10f);
-                    __m128 vec_den = (vec_z * (vec_z * (vec_z - 0.307646912682801e4f) + 0.347626332405882e7f) -
+                    vector float vec_den = (vec_z * (vec_z * (vec_z - 0.307646912682801e4f) + 0.347626332405882e7f) -
                                      0.144048298227235e10f);
-                    __m128 vec_rValue = (0 - vec_num) / vec_den;
-                    __m128 vec_w = vec_rValue * pt.sdc;
-                    __m128 vec_w_real_product = vec_w * pt.real;
-                    __m128 vec_w_imag_product = vec_w * pt.imag;
+                    vector float vec_rValue = (0 - vec_num) / vec_den;
+                    vector float vec_w = vec_rValue * pt.sdc;
+                    vector float vec_w_real_product = vec_w * pt.real;
+                    vector float vec_w_imag_product = vec_w * pt.imag;
                     for (int rtcheck_i = 0; rtcheck_i < stride; rtcheck_i++) {
                       idx = (unsigned int)vec_idx[rtcheck_i];
                       gridData[idx].real += vec_w_real_product[rtcheck_i];
