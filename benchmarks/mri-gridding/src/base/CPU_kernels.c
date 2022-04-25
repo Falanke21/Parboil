@@ -183,7 +183,7 @@ int gridding_Gold(unsigned int n, parameters params, ReconstructionSample* __res
                 __m128 vec_dy2dz2 = _mm_set1_ps(dy2dz2);
                 __m128 vec_dx2 = _mm_set1_ps(*dx2);
                 for (; i < upper_bound; i += stride) {
-                  __m128 vec_nx = vec_NxL + (float)i;
+                  __m128 vec_nx = vec_NxL + (__m128){i, i+1, i+2, i+3};
                   __m128 vec_v = vec_dy2dz2 + vec_dx2;
                   if (vec_v[0]<cutoff2 && vec_v[1]<cutoff2 && vec_v[2]<cutoff2 && vec_v[3]<cutoff2) 
                   {
