@@ -175,135 +175,95 @@ int gridding_Gold(unsigned int n, parameters params, ReconstructionSample* __res
             {
               int len = NxH - NxL + 1;
 
-                // // Start rt-check
-                // int stride = 8;
-                // int upper_bound = len / stride * stride;
-                // int i = 0;
-                // __m256 vec_NxL = _mm256_set1_ps(NxL);
-                // __m256 vec_dy2dz2 = _mm256_set1_ps(dy2dz2);
-                // __m256 vec_dx2 = _mm256_set1_ps(*dx2);
-                // for (; i < upper_bound; i += stride) {
-                //   __m256 vec_nx = vec_NxL + (float)i;
-                //   __m256 vec_v = vec_dy2dz2 + vec_dx2;
-                //   if (vec_v[0]<cutoff2 && vec_v[1]<cutoff2 && vec_v[2]<cutoff2 && vec_v[3]<cutoff2 && 
-                //       vec_v[4]<cutoff2 && vec_v[5]<cutoff2 && vec_v[6]<cutoff2 && vec_v[7]<cutoff2) 
-                //   {
-                //     __m256 vec_idx = vec_nx + (float)idx0;
-                //     __m256 vec_val = beta * _mm256_sqrt_ps(1.0 - (vec_v * _1overCutoff2));
-                //     __m256 vec_z = vec_val * vec_val;
-                //     __m256 vec_num = (vec_z * (vec_z * (vec_z * (vec_z * (vec_z * (vec_z * (vec_z * (vec_z * (vec_z * (vec_z * (vec_z * (vec_z * (vec_z *
-                //                                                                                  (vec_z *
-                //                                                                                   0.210580722890567e-22f +
-                //                                                                                   0.380715242345326e-19f) +
-                //                                                                                  0.479440257548300e-16f) +
-                //                                                                             0.435125971262668e-13f) +
-                //                                                                        0.300931127112960e-10f) +
-                //                                                                   0.160224679395361e-7f) +
-                //                                                              0.654858370096785e-5f) +
-                //                                                         0.202591084143397e-2f) +
-                //                                                    0.463076284721000e0f) + 0.754337328948189e2f) +
-                //                                          0.830792541809429e4f) + 0.571661130563785e6f) +
-                //                                0.216415572361227e8f) + 0.356644482244025e9f) +
-                //                      0.144048298227235e10f);
-                //     __m256 vec_den = (vec_z * (vec_z * (vec_z - 0.307646912682801e4f) + 0.347626332405882e7f) -
-                //                      0.144048298227235e10f);
-                //     __m256 vec_rValue = (0 - vec_num) / vec_den;
-                //     __m256 vec_w = vec_rValue * pt.sdc;
-                //     __m256 vec_w_real_product = vec_w * pt.real;
-                //     __m256 vec_w_imag_product = vec_w * pt.imag;
-                //     for (int rtcheck_i = 0; rtcheck_i < stride; rtcheck_i++) {
-                //       idx = (unsigned int)vec_idx[rtcheck_i];
-                //       gridData[idx].real += vec_w_real_product[rtcheck_i];
-                //       gridData[idx].imag += vec_w_imag_product[rtcheck_i];
-                //       sampleDensity[idx] += 1.0;
-                //     }
-                //   }
-                //   else if (!(vec_v[0]<cutoff2) && !(vec_v[1]<cutoff2) && !(vec_v[2]<cutoff2) && !(vec_v[3]<cutoff2) && 
-                //            !(vec_v[4]<cutoff2) && !(vec_v[5]<cutoff2) && !(vec_v[6]<cutoff2) && !(vec_v[7]<cutoff2))
-                //   {}
-                //   else
-                //   {
-                //     // Unroll
-                //     for (int unroll_i = 0; unroll_i < stride; unroll_i++) {
-                //       if (vec_v[unroll_i] < cutoff2) {
-                //           idx = vec_nx[unroll_i] + idx0;
-                //           float val = beta*sqrt(1.0-(vec_v[unroll_i]*_1overCutoff2));
-                //           float rValue = 0;
+                // Start rt-check
+                int stride = 4;
+                int upper_bound = len / stride * stride;
+                int i = 0;
+                __m128 vec_NxL = _mm_set1_ps(NxL);
+                __m128 vec_dy2dz2 = _mm_set1_ps(dy2dz2);
+                __m128 vec_dx2 = _mm_set1_ps(*dx2);
+                for (; i < upper_bound; i += stride) {
+                  __m128 vec_nx = vec_NxL + (float)i;
+                  __m128 vec_v = vec_dy2dz2 + vec_dx2;
+                  if (vec_v[0]<cutoff2 && vec_v[1]<cutoff2 && vec_v[2]<cutoff2 && vec_v[3]<cutoff2) 
+                  {
+                    __m128 vec_idx = vec_nx + (float)idx0;
+                    __m128 vec_val = beta * _mm_sqrt_ps(1.0 - (vec_v * _1overCutoff2));
+                    __m128 vec_z = vec_val * vec_val;
+                    __m128 vec_num = (vec_z * (vec_z * (vec_z * (vec_z * (vec_z * (vec_z * (vec_z * (vec_z * (vec_z * (vec_z * (vec_z * (vec_z * (vec_z *
+                                                                                                 (vec_z *
+                                                                                                  0.210580722890567e-22f +
+                                                                                                  0.380715242345326e-19f) +
+                                                                                                 0.479440257548300e-16f) +
+                                                                                            0.435125971262668e-13f) +
+                                                                                       0.300931127112960e-10f) +
+                                                                                  0.160224679395361e-7f) +
+                                                                             0.654858370096785e-5f) +
+                                                                        0.202591084143397e-2f) +
+                                                                   0.463076284721000e0f) + 0.754337328948189e2f) +
+                                                         0.830792541809429e4f) + 0.571661130563785e6f) +
+                                               0.216415572361227e8f) + 0.356644482244025e9f) +
+                                     0.144048298227235e10f);
+                    __m128 vec_den = (vec_z * (vec_z * (vec_z - 0.307646912682801e4f) + 0.347626332405882e7f) -
+                                     0.144048298227235e10f);
+                    __m128 vec_rValue = (0 - vec_num) / vec_den;
+                    __m128 vec_w = vec_rValue * pt.sdc;
+                    __m128 vec_w_real_product = vec_w * pt.real;
+                    __m128 vec_w_imag_product = vec_w * pt.imag;
+                    for (int rtcheck_i = 0; rtcheck_i < stride; rtcheck_i++) {
+                      idx = (unsigned int)vec_idx[rtcheck_i];
+                      gridData[idx].real += vec_w_real_product[rtcheck_i];
+                      gridData[idx].imag += vec_w_imag_product[rtcheck_i];
+                      sampleDensity[idx] += 1.0;
+                    }
+                  }
+                  else if (!(vec_v[0]<cutoff2) && !(vec_v[1]<cutoff2) && !(vec_v[2]<cutoff2) && !(vec_v[3]<cutoff2))
+                  {}
+                  else
+                  {
+                    // Unroll
+                    for (int unroll_i = 0; unroll_i < stride; unroll_i++) {
+                      if (vec_v[unroll_i] < cutoff2) {
+                          idx = vec_nx[unroll_i] + idx0;
+                          float val = beta*sqrt(1.0-(vec_v[unroll_i]*_1overCutoff2));
+                          float rValue = 0;
 
-                //           const float z = val * val;
+                          const float z = val * val;
 
-                //           // polynomials taken from http://ccrma.stanford.edu/CCRMA/Courses/422/projects/kbd/kbdwindow.cpp
-                //           float num = (z * (z * (z * (z * (z * (z * (z * (z * (z * (z * (z * (z * (z *
-                //                                                                                     (z *
-                //                                                                                     0.210580722890567e-22f +
-                //                                                                                     0.380715242345326e-19f) +
-                //                                                                                     0.479440257548300e-16f) +
-                //                                                                               0.435125971262668e-13f) +
-                //                                                                           0.300931127112960e-10f) +
-                //                                                                     0.160224679395361e-7f) +
-                //                                                                 0.654858370096785e-5f) +
-                //                                                           0.202591084143397e-2f) +
-                //                                                       0.463076284721000e0f) + 0.754337328948189e2f) +
-                //                                             0.830792541809429e4f) + 0.571661130563785e6f) +
-                //                                   0.216415572361227e8f) + 0.356644482244025e9f) +
-                //                         0.144048298227235e10f);
+                          // polynomials taken from http://ccrma.stanford.edu/CCRMA/Courses/422/projects/kbd/kbdwindow.cpp
+                          float num = (z * (z * (z * (z * (z * (z * (z * (z * (z * (z * (z * (z * (z *
+                                                                                                    (z *
+                                                                                                    0.210580722890567e-22f +
+                                                                                                    0.380715242345326e-19f) +
+                                                                                                    0.479440257548300e-16f) +
+                                                                                              0.435125971262668e-13f) +
+                                                                                          0.300931127112960e-10f) +
+                                                                                    0.160224679395361e-7f) +
+                                                                                0.654858370096785e-5f) +
+                                                                          0.202591084143397e-2f) +
+                                                                      0.463076284721000e0f) + 0.754337328948189e2f) +
+                                                            0.830792541809429e4f) + 0.571661130563785e6f) +
+                                                  0.216415572361227e8f) + 0.356644482244025e9f) +
+                                        0.144048298227235e10f);
 
-                //           float den = (z * (z * (z - 0.307646912682801e4f) + 0.347626332405882e7f) -
-                //                         0.144048298227235e10f);
+                          float den = (z * (z * (z - 0.307646912682801e4f) + 0.347626332405882e7f) -
+                                        0.144048298227235e10f);
 
-                //           rValue = -num / den;
-                //           w = rValue * pt.sdc;
+                          rValue = -num / den;
+                          w = rValue * pt.sdc;
 
-                //           /* grid data */
-                //           gridData[idx].real += (w * pt.real);
-                //           gridData[idx].imag += (w * pt.imag);
+                          /* grid data */
+                          gridData[idx].real += (w * pt.real);
+                          gridData[idx].imag += (w * pt.imag);
 
-                //           /* estimate sample density */
-                //           sampleDensity[idx] += 1.0;
-                //       }
-                //     }
-                //   }
-                // }
-                // // Handle remainder
-                // for (; i < len; ++i) {
-                //     nx = NxL + i;
-                //     /* value to evaluate kernel at */
-                //     v = dy2dz2 + (*dx2);
-                //     if (v < cutoff2) {
-                //         idx = nx + idx0;
-                //         float val = beta*sqrt(1.0-(v*_1overCutoff2));
-                //         float rValue = 0;
-                //         const float z = val * val;
-                //         // polynomials taken from http://ccrma.stanford.edu/CCRMA/Courses/422/projects/kbd/kbdwindow.cpp
-                //         float num = (z * (z * (z * (z * (z * (z * (z * (z * (z * (z * (z * (z * (z *
-                //                                                                                  (z *
-                //                                                                                   0.210580722890567e-22f +
-                //                                                                                   0.380715242345326e-19f) +
-                //                                                                                  0.479440257548300e-16f) +
-                //                                                                             0.435125971262668e-13f) +
-                //                                                                        0.300931127112960e-10f) +
-                //                                                                   0.160224679395361e-7f) +
-                //                                                              0.654858370096785e-5f) +
-                //                                                         0.202591084143397e-2f) +
-                //                                                    0.463076284721000e0f) + 0.754337328948189e2f) +
-                //                                          0.830792541809429e4f) + 0.571661130563785e6f) +
-                //                                0.216415572361227e8f) + 0.356644482244025e9f) +
-                //                      0.144048298227235e10f);
-                //         float den = (z * (z * (z - 0.307646912682801e4f) + 0.347626332405882e7f) -
-                //                      0.144048298227235e10f);
-                //         rValue = -num / den;
-                //         w = rValue * pt.sdc;
-                //         /* grid data */
-                //         gridData[idx].real += (w * pt.real);
-                //         gridData[idx].imag += (w * pt.imag);
-                //         /* estimate sample density */
-                //         sampleDensity[idx] += 1.0;
-                //     }
-                // }
-                // // End rt-check
-
-                // Scalar code
-                for (int i = 0; i < len; ++i) {
+                          /* estimate sample density */
+                          sampleDensity[idx] += 1.0;
+                      }
+                    }
+                  }
+                }
+                // Handle remainder
+                for (; i < len; ++i) {
                     nx = NxL + i;
                     /* value to evaluate kernel at */
                     v = dy2dz2 + (*dx2);
@@ -338,6 +298,44 @@ int gridding_Gold(unsigned int n, parameters params, ReconstructionSample* __res
                         sampleDensity[idx] += 1.0;
                     }
                 }
+                // End rt-check
+
+                // Scalar code
+                // for (int i = 0; i < len; ++i) {
+                //     nx = NxL + i;
+                //     /* value to evaluate kernel at */
+                //     v = dy2dz2 + (*dx2);
+                //     if (v < cutoff2) {
+                //         idx = nx + idx0;
+                //         float val = beta*sqrt(1.0-(v*_1overCutoff2));
+                //         float rValue = 0;
+                //         const float z = val * val;
+                //         // polynomials taken from http://ccrma.stanford.edu/CCRMA/Courses/422/projects/kbd/kbdwindow.cpp
+                //         float num = (z * (z * (z * (z * (z * (z * (z * (z * (z * (z * (z * (z * (z *
+                //                                                                                  (z *
+                //                                                                                   0.210580722890567e-22f +
+                //                                                                                   0.380715242345326e-19f) +
+                //                                                                                  0.479440257548300e-16f) +
+                //                                                                             0.435125971262668e-13f) +
+                //                                                                        0.300931127112960e-10f) +
+                //                                                                   0.160224679395361e-7f) +
+                //                                                              0.654858370096785e-5f) +
+                //                                                         0.202591084143397e-2f) +
+                //                                                    0.463076284721000e0f) + 0.754337328948189e2f) +
+                //                                          0.830792541809429e4f) + 0.571661130563785e6f) +
+                //                                0.216415572361227e8f) + 0.356644482244025e9f) +
+                //                      0.144048298227235e10f);
+                //         float den = (z * (z * (z - 0.307646912682801e4f) + 0.347626332405882e7f) -
+                //                      0.144048298227235e10f);
+                //         rValue = -num / den;
+                //         w = rValue * pt.sdc;
+                //         /* grid data */
+                //         gridData[idx].real += (w * pt.real);
+                //         gridData[idx].imag += (w * pt.imag);
+                //         /* estimate sample density */
+                //         sampleDensity[idx] += 1.0;
+                //     }
+                // }
             }
           }
         }
