@@ -179,7 +179,7 @@ int gridding_Gold(unsigned int n, parameters params, ReconstructionSample* __res
                 int stride = 4;
                 int upper_bound = len / stride * stride;
                 int i = 0;
-                vector float vec_NxL = vec_splats(NxL);
+                vector float vec_NxL = (vector float)vec_splats(NxL);
                 vector float vec_dy2dz2 = vec_splats(dy2dz2);
                 vector float vec_dx2 = vec_splats(*dx2);
                 for (; i < upper_bound; i += stride) {
