@@ -66,7 +66,7 @@ OPT_CFLAGS=-O2
 OPT_LDFLAGS=
 endif
 ifeq ($(OPTIMIZATION),3)
-OPT_CFLAGS=-O3 -mavx2
+OPT_CFLAGS=-O3 -maltivec
 OPT_LDFLAGS=
 endif
 
