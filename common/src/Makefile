@@ -13,9 +13,9 @@ CFLAGS=-I$(PARBOIL_ROOT)/common/include
 AR=ar
 RANLIB=ranlib
 
-OBJS=$(foreach file,parboil.o args.o,$(BUILD_DIR)/$(file))
-OBJS_TWO=$(foreach file,parboil_cuda.o args.o,$(BUILD_DIR)/$(file))
-OBJS_THREE=$(foreach file,parboil_opencl.o args.o,$(BUILD_DIR)/$(file))
+OBJS=$(BUILD_DIR)/parboil.o
+OBJS_TWO=$(BUILD_DIR)/parboil_cuda.o
+OBJS_THREE=$(BUILD_DIR)/parboil_opencl.o
 TARGET=$(BUILD_DIR)/libparboil.a 
 TARGET_TWO=$(BUILD_DIR)/libparboil_cuda.a
 TARGET_THREE=$(BUILD_DIR)/libparboil_opencl.a
@@ -54,9 +54,6 @@ clean:
 $(BUILD_DIR)/parboil.o : parboil.c
 	$(CC) -c -g $(CFLAGS) $^ -o $@
 
-$(BUILD_DIR)/args.o : args.c
-	$(CC) -c -g $(CFLAGS) $^ -o $@
-
 $(BUILD_DIR)/parboil_cuda.o : parboil_cuda.c
 	$(CC) -c -g $(CFLAGS) -I$(CUDA_PATH)/include $^ -o $@
 
@@ -70,7 +67,7 @@ $(TARGET) : $(OBJS)
 $(TARGET_TWO) : $(OBJS_TWO)
 	$(AR) rc $@ $?
 	$(RANLIB) $@
-
+	
 $(TARGET_THREE) : $(OBJS_THREE)
 	$(AR) rc $@ $?
 	$(RANLIB) $@	

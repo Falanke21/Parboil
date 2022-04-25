@@ -7,7 +7,7 @@
 
 # gcc (default)
 CC = gcc
-PLATFORM_CFLAGS =
+PLATFORM_CFLAGS = 
   
 CXX = g++
 PLATFORM_CXXFLAGS = 

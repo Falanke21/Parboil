@@ -13,12 +13,216 @@
 # include <sys/time.h>
 #endif
 
-#include "perfmon.h"
-
 cl_context *clContextPtr;
 cl_command_queue *clCommandQueuePtr;
 
-// #define DISABLE_PARBOIL_TIMER
+/* Free an array of owned strings. */
+static void
+free_string_array(char **string_array)
+{
+  char **p;
+
+  if (!string_array) return;
+  for (p = string_array; *p; p++) free(*p);
+  free(string_array);
+}
+
+/* Parse a comma-delimited list of strings into an
+ * array of strings. */
+static char ** 
+read_string_array(char *in)
+{
+  char **ret;
+  int i;
+  int count;			/* Number of items in the input */
+  char *substring;		/* Current substring within 'in' */
+
+  /* Count the number of items in the string */
+  count = 1;
+  for (i = 0; in[i]; i++) if (in[i] == ',') count++;
+
+  /* Allocate storage */
+  ret = (char **)malloc((count + 1) * sizeof(char *));
+
+  /* Create copies of the strings from the list */
+  substring = in;
+  for (i = 0; i < count; i++) {
+    char *substring_end;
+    int substring_length;
+
+    /* Find length of substring */
+    for (substring_end = substring;
+	 (*substring_end != ',') && (*substring_end != 0);
+	 substring_end++);
+
+    substring_length = substring_end - substring;
+
+    /* Allocate memory and copy the substring */
+    ret[i] = (char *)malloc(substring_length + 1);
+    memcpy(ret[i], substring, substring_length);
+    ret[i][substring_length] = 0;
+
+    /* go to next substring */
+    substring = substring_end + 1;
+  }
+  ret[i] = NULL;		/* Write the sentinel value */
+
+  return ret;
+}
+
+struct argparse {
+  int argc;			/* Number of arguments.  Mutable. */
+  char **argv;			/* Argument values.  Immutable. */
+
+  int argn;			/* Current argument number. */
+  char **argv_get;		/* Argument value being read. */
+  char **argv_put;		/* Argument value being written.
+				 * argv_put <= argv_get. */
+};
+
+static void
+initialize_argparse(struct argparse *ap, int argc, char **argv)
+{
+  ap->argc = argc;
+  ap->argn = 0;
+  ap->argv_get = ap->argv_put = ap->argv = argv;
+}
+
+static void
+finalize_argparse(struct argparse *ap)
+{
+  /* Move the remaining arguments */
+  for(; ap->argn < ap->argc; ap->argn++)
+    *ap->argv_put++ = *ap->argv_get++;
+}
+
+/* Delete the current argument. */
+static void
+delete_argument(struct argparse *ap)
+{
+  if (ap->argn >= ap->argc) {
+    //fprintf(stderr, "delete_argument\n");
+  }
+  ap->argc--;
+  ap->argv_get++;
+}
+
+/* Go to the next argument.  Also, move the current argument to its
+ * final location in argv. */
+static void
+next_argument(struct argparse *ap)
+{
+  if (ap->argn >= ap->argc) {
+    //fprintf(stderr, "next_argument\n");
+  }
+  /* Move argument to its new location. */
+  *ap->argv_put++ = *ap->argv_get++;
+  ap->argn++;
+}
+
+static int
+is_end_of_arguments(struct argparse *ap)
+{
+  return ap->argn == ap->argc;
+}
+
+static char *
+get_argument(struct argparse *ap)
+{
+  return *ap->argv_get;
+}
+
+static char *
+consume_argument(struct argparse *ap)
+{
+  char *ret = get_argument(ap);
+  delete_argument(ap);
+  return ret;
+}
+
+struct pb_Parameters *
+pb_ReadParameters(int *_argc, char **argv)
+{
+  char *err_message;
+  struct argparse ap;
+  struct pb_Parameters *ret =
+    (struct pb_Parameters *)malloc(sizeof(struct pb_Parameters));
+
+  /* Initialize the parameters structure */
+  ret->outFile = NULL;
+  ret->inpFiles = (char **)malloc(sizeof(char *));
+  ret->inpFiles[0] = NULL;
+
+  /* Each argument */
+  initialize_argparse(&ap, *_argc, argv);
+  while(!is_end_of_arguments(&ap)) {
+    char *arg = get_argument(&ap);
+
+    /* Single-character flag */
+    if ((arg[0] == '-') && (arg[1] != 0) && (arg[2] == 0)) {
+      delete_argument(&ap);	/* This argument is consumed here */
+
+      switch(arg[1]) {
+      case 'o':			/* Output file name */
+	if (is_end_of_arguments(&ap))
+	  {
+	    err_message = "Expecting file name after '-o'\n";
+	    goto error;
+	  }
+	free(ret->outFile);
+	ret->outFile = strdup(consume_argument(&ap));
+	break;
+      case 'i':			/* Input file name */
+	if (is_end_of_arguments(&ap))
+	  {
+	    err_message = "Expecting file name after '-i'\n";
+	    goto error;
+	  }
+	ret->inpFiles = read_string_array(consume_argument(&ap));
+	break;
+      case '-':			/* End of options */
+	goto end_of_options;
+      default:
+	err_message = "Unexpected command-line parameter\n";
+	goto error;
+      }
+    }
+    else {
+      /* Other parameters are ignored */
+      next_argument(&ap);
+    }
+  } /* end for each argument */
+
+ end_of_options:
+  *_argc = ap.argc;		/* Save the modified argc value */
+  finalize_argparse(&ap);
+
+  return ret;
+
+ error:
+  fputs(err_message, stderr);
+  pb_FreeParameters(ret);
+  return NULL;
+}
+
+void
+pb_FreeParameters(struct pb_Parameters *p)
+{
+  char **cpp;
+
+  free(p->outFile);
+  free_string_array(p->inpFiles);
+  free(p);
+}
+
+int
+pb_Parameters_CountInputs(struct pb_Parameters *p)
+{
+  int n;
+
+  for (n = 0; p->inpFiles[n]; n++);
+  return n;
+}
 
 /*****************************************************************************/
 /* Timer routines */
@@ -207,7 +411,6 @@ static pb_Timestamp get_time()
 void
 pb_ResetTimer(struct pb_Timer *timer)
 {
-#ifndef DISABLE_PARBOIL_TIMER
   timer->state = pb_Timer_STOPPED;
 
 #if _POSIX_VERSION >= 200112L
@@ -215,13 +418,11 @@ pb_ResetTimer(struct pb_Timer *timer)
 #else
 # error "pb_ResetTimer: not implemented for this system"
 #endif
-#endif
 }
 
 void
 pb_StartTimer(struct pb_Timer *timer)
 {
-#ifndef DISABLE_PARBOIL_TIMER
   if (timer->state != pb_Timer_STOPPED) {
     fputs("Ignoring attempt to start a running timer\n", stderr);
     return;
@@ -238,13 +439,11 @@ pb_StartTimer(struct pb_Timer *timer)
 #else
 # error "pb_StartTimer: not implemented for this system"
 #endif
-#endif
 }
 
 void
 pb_StartTimerAndSubTimer(struct pb_Timer *timer, struct pb_Timer *subtimer)
 {
-#ifndef DISABLE_PARBOIL_TIMER
 
   unsigned int numNotStopped = 0x3; // 11
   if (timer->state != pb_Timer_STOPPED) {
@@ -280,14 +479,11 @@ pb_StartTimerAndSubTimer(struct pb_Timer *timer, struct pb_Timer *subtimer)
 # error "pb_StartTimer: not implemented for this system"
 #endif
 
-#endif
 }
 
 void
 pb_StopTimer(struct pb_Timer *timer)
 {
-#ifndef DISABLE_PARBOIL_TIMER
-
   pb_Timestamp fini;
 
   if (timer->state != pb_Timer_RUNNING) {
@@ -309,12 +505,9 @@ pb_StopTimer(struct pb_Timer *timer)
 
   accumulate_time(&timer->elapsed, timer->init, fini);
   timer->init = fini;
-
-#endif
 }
 
 void pb_StopTimerAndSubTimer(struct pb_Timer *timer, struct pb_Timer *subtimer) {
-#ifndef DISABLE_PARBOIL_TIMER
 
   pb_Timestamp fini;
 
@@ -356,7 +549,6 @@ void pb_StopTimerAndSubTimer(struct pb_Timer *timer, struct pb_Timer *subtimer) 
     subtimer->init = fini;
   }
 
-#endif
 }
 
 /* Get the elapsed time in seconds. */
@@ -364,7 +556,6 @@ double
 pb_GetElapsedTime(struct pb_Timer *timer)
 {
   double ret;
-#ifndef DISABLE_PARBOIL_TIMER
 
   if (timer->state != pb_Timer_STOPPED) {
     fputs("Elapsed time from a running timer is inaccurate\n", stderr);
@@ -375,14 +566,12 @@ pb_GetElapsedTime(struct pb_Timer *timer)
 #else
 # error "pb_GetElapsedTime: not implemented for this system"
 #endif
-#endif
   return ret;
 }
 
 void
 pb_InitializeTimerSet(struct pb_TimerSet *timers)
 {
-#ifndef DISABLE_PARBOIL_TIMER
   int n;
 
   timers->wall_begin = get_time();
@@ -394,7 +583,6 @@ pb_InitializeTimerSet(struct pb_TimerSet *timers)
     pb_ResetTimer(&timers->timers[n]);
     timers->sub_timer_list[n] = NULL;
   }
-#endif
 }
 
 void pb_SetOpenCL(void *p_clContextPtr, void *p_clCommandQueuePtr) {
@@ -404,7 +592,6 @@ void pb_SetOpenCL(void *p_clContextPtr, void *p_clCommandQueuePtr) {
 
 void
 pb_AddSubTimer(struct pb_TimerSet *timers, char *label, enum pb_TimerID pb_Category) {    
-#ifndef DISABLE_PARBOIL_TIMER
   
   struct pb_SubTimer *subtimer = (struct pb_SubTimer *) malloc
     (sizeof(struct pb_SubTimer));
@@ -432,14 +619,11 @@ pb_AddSubTimer(struct pb_TimerSet *timers, char *label, enum pb_TimerID pb_Categ
     element->next = subtimer;
   }
   
-#endif
 }
 
 void
 pb_SwitchToTimer(struct pb_TimerSet *timers, enum pb_TimerID timer)
 {
-#ifndef DISABLE_PARBOIL_TIMER
-
   /* Stop the currently running timer */
   if (timers->current != pb_TimerID_NONE) {
     struct pb_SubTimerList *subtimerlist = timers->sub_timer_list[timers->current];
@@ -550,13 +734,11 @@ pb_SwitchToTimer(struct pb_TimerSet *timers, enum pb_TimerID timer)
   }
   timers->current = timer;
 
-#endif
 }
 
 void
 pb_SwitchToSubTimer(struct pb_TimerSet *timers, char *label, enum pb_TimerID category) 
 {
-#ifndef DISABLE_PARBOIL_TIMER
   struct pb_SubTimerList *subtimerlist = timers->sub_timer_list[timers->current];
   struct pb_SubTimer *curr = (subtimerlist != NULL) ? subtimerlist->current : NULL;
   
@@ -696,13 +878,11 @@ pb_SwitchToSubTimer(struct pb_TimerSet *timers, char *label, enum pb_TimerID cat
   }
   
   timers->current = category;
-#endif
 }
 
 void
 pb_PrintTimerSet(struct pb_TimerSet *timers)
 {
-#ifndef DISABLE_PARBOIL_TIMER
   pb_Timestamp wall_end = get_time();
 
   struct pb_Timer *t = timers->timers;
@@ -756,12 +936,10 @@ pb_PrintTimerSet(struct pb_TimerSet *timers)
   float walltime = (wall_end - timers->wall_begin)/ 1e6;
   printf("Timer Wall Time: %f\n", walltime);
   
-#endif
 }
 
 void pb_DestroyTimerSet(struct pb_TimerSet * timers)
 {
-#ifndef DISABLE_PARBOIL_TIMER
   /* clean up all of the async event markers */
   struct pb_async_time_marker_list* event = timers->async_markers;
   while(event != NULL) {
@@ -800,562 +978,6 @@ void pb_DestroyTimerSet(struct pb_TimerSet * timers)
       free(timers->sub_timer_list[i]);
     }
   }
-#endif
 }
 
-static pb_Platform** ptr = NULL;
-
-// verbosely print out list of platforms and their devices to the console.
-pb_Platform**
-pb_GetPlatforms() {
-  if (ptr == NULL) {
-    cl_uint num_platforms;
-    clGetPlatformIDs(0, NULL, &num_platforms);
-    if (num_platforms == 0) return NULL;
-
-    ptr = (pb_Platform **) malloc(sizeof(pb_Platform *) * (num_platforms + 1));
-    cl_platform_id* ids = (cl_platform_id *) malloc(num_platforms * sizeof(cl_platform_id));
-    clGetPlatformIDs(num_platforms, ids, NULL);
-
-    unsigned int i;
-    for (i = 0; i < num_platforms; i++) {
-      ptr[i] = (pb_Platform *) malloc(sizeof(pb_Platform));
-      ptr[i]->clPlatform = ids[i];
-      ptr[i]->contexts = NULL;
-      ptr[i]->in_use = 0;
-      ptr[i]->devices = NULL;
-
-      size_t sz;
-      clGetPlatformInfo(ids[i], CL_PLATFORM_NAME, 0, NULL, &sz);
-      char* name = (char *) malloc(sz + 1);
-      clGetPlatformInfo(ids[i], CL_PLATFORM_NAME, sz, name, NULL);
-      name[sz] = '\0';
-      ptr[i]->name = name;
-
-      clGetPlatformInfo(ids[i], CL_PLATFORM_VERSION, 0, NULL, &sz);
-      char* version = (char *) malloc(sz + 1);
-      clGetPlatformInfo(ids[i], CL_PLATFORM_VERSION, sz, version, NULL);
-      version[sz] = '\0';
-      ptr[i]->version = version;
-    }
-    ptr[i] = NULL;
-
-    free(ids);
-  }
-
-  return (pb_Platform**) ptr;
-}
-
-pb_Context* 
-createContext(pb_Platform* pb_platform, pb_Device* pb_device) {
-  pb_Context* c = (pb_Context*) malloc(sizeof(pb_Context));
-  cl_int clStatus;
-  cl_context_properties clCps[3] = {
-    CL_CONTEXT_PLATFORM, (cl_context_properties)(pb_platform->clPlatform), 0
-  };
-  c->clContext =
-    clCreateContext(clCps, 1, (cl_device_id*)&pb_device->clDevice, NULL, NULL, &clStatus);
-  c->clPlatformId = pb_platform->clPlatform;
-  c->clDeviceId = pb_device->clDevice;
-  c->pb_platform = pb_platform;
-  c->pb_device = pb_device;
-  pb_platform->in_use = 1;
-  pb_device->in_use = 1;
-  unsigned int i = 0;
-  if (pb_platform->contexts == NULL) {
-    pb_platform->contexts = (pb_Context**) malloc(2*sizeof(pb_Context*));
-  } else {
-    for (i = 0; pb_platform->contexts[i] != NULL; i++) {};
-    pb_platform->contexts = (pb_Context**) realloc(pb_platform->contexts,
-                                                   (i+1)*sizeof(pb_Context*));
-  }
-  pb_platform->contexts[i+1] = NULL;
-  pb_platform->contexts[i] = c;
-  return c;
-}
-
-// choose a platform by name.
-pb_Platform*
-pb_GetPlatformByName(const char* name) {
-  pb_Platform** ps = (pb_Platform **) pb_GetPlatforms();
-  if (ps == NULL) return NULL;
-  if (name == NULL) {
-    return *ps;
-  }
-
-  while (*ps) {
-    if (strstr((*ps)->name, name)) break;
-    ps++;
-  }
-  return (pb_Platform*) *ps;
-}
-
-pb_Device**
-pb_GetDevices(pb_Platform* pb_platform) {
-  if (pb_platform->devices == NULL) {
-    cl_uint num_devs;
-    cl_device_id* dev_ids;
-    clGetDeviceIDs((cl_platform_id) pb_platform->clPlatform,
-                    CL_DEVICE_TYPE_ALL, 0, NULL, &num_devs);
-    if (num_devs == 0) return NULL;
-
-    pb_platform->devices =
-      (pb_Device **) malloc((num_devs + 1) * sizeof(pb_Device *));
-    dev_ids = (cl_device_id *) malloc(sizeof(cl_device_id) * num_devs);
-    clGetDeviceIDs((cl_platform_id) pb_platform->clPlatform,
-                    CL_DEVICE_TYPE_ALL, num_devs, dev_ids, NULL);
-
-    unsigned int i;
-    for (i = 0; i < num_devs; i++) {
-      pb_platform->devices[i] = (pb_Device *) malloc(sizeof(pb_Device));
-
-      pb_platform->devices[i]->clDevice = dev_ids[i];
-      pb_platform->devices[i]->id = i;
-
-      size_t sz;
-      clGetDeviceInfo(dev_ids[i], CL_DEVICE_NAME, 0, NULL, &sz);
-      char* name = (char *) malloc(sz + 1);
-      clGetDeviceInfo(dev_ids[i], CL_DEVICE_NAME, sz, name, NULL);
-      name[sz] = '\0';
-      pb_platform->devices[i]->name = (char *) name;
-
-      cl_bool available;
-      clGetDeviceInfo(dev_ids[i], CL_DEVICE_AVAILABLE, sizeof(cl_bool), &available, NULL); 
-      pb_platform->devices[i]->available = (int) available;
-
-      pb_platform->devices[i]->in_use = 0;
-    }
-    pb_platform->devices[i] = NULL;
-  }
-  return (pb_Device **) pb_platform->devices;
-}
-
-// choose a device by name.
-static pb_Device*
-pb_SelectDeviceByName(pb_Device **ds, const char* name) {
-  if (ds == NULL) return NULL;
-  if (name == NULL) return *ds;
-  while (*ds) {
-    if (strstr((*ds)->name, name)) break;
-    ds++;
-  }
-
-  return *ds;
-}
-
-// choose a device by name and set the device's 'in_use' flag.
-pb_Device*
-pb_GetDeviceByName(pb_Platform* pb_platform, const char* name) {
-  pb_Device** ds = (pb_Device **) pb_GetDevices(pb_platform);
-  pb_Device *d = pb_SelectDeviceByName(ds, name);
-
-  if (d) d->in_use = 1;
-
-  return d;
-}
-
-void
-pb_ReleasePlatforms() {
-  if (!ptr) return;
-  pb_Platform** cur_ptr = ptr;
-  while (*cur_ptr) {
-    pb_Platform* pfptr = *cur_ptr++;
-    if (pfptr->devices) {
-      pb_Device** dvptr = pfptr->devices;
-      while (*dvptr) {
-        pb_Device* d = *dvptr++;
-        free(d->name);
-        free(d);
-      }
-      free(pfptr->devices);
-    }
-    if (pfptr->contexts) {
-      pb_Context** cptr = pfptr->contexts;
-      while (*cptr) {
-        free(*cptr++);
-      }
-      free(pfptr->contexts);
-    }
-    free(pfptr->name);
-    free(pfptr);
-  }
-  free(ptr);
-  ptr = NULL;
-}
-
-pb_Platform*
-pb_GetPlatformByNameAndVersion(const char* name, const char* version) {
-  pb_Platform** ps = (pb_Platform **) pb_GetPlatforms();
-  if (ps == NULL) return NULL;
-  if (name == NULL) return *ps;
-  while (*ps) {
-    if (strstr((*ps)->name, name) && strstr((*ps)->version, version)) break;
-    ps++;
-  }
-  return (pb_Platform*) *ps;
-}
-
-/* Return a pointer to the device at the specified index, or NULL.
- * Used by pb_GetDevice. */
-static pb_Device *
-select_device_by_index(pb_Device** ds, int id)
-{
-  int i = 0;
-  pb_Device** p = ds;
-  while (*p && (i < id)) { p++; i++; }
-  return *p;
-}
-
-/* Return a pointer to the device with the specified type, or NULL.
- * Used by pb_GetDevice. */
-static pb_Device *
-select_device_by_type(pb_Device** ds,
-                      enum pb_DeviceSelectionCriterion criterion)
-{
-  cl_device_type sought_type;
-
-  /* Determine the OpenCL device type to search for */
-  switch(criterion) {
-  case pb_Device_CPU:
-    sought_type = CL_DEVICE_TYPE_CPU;
-    break;
-  case pb_Device_GPU:
-    sought_type = CL_DEVICE_TYPE_GPU;
-    break;
-  case pb_Device_ACCELERATOR:
-    sought_type = CL_DEVICE_TYPE_ACCELERATOR;
-    break;
-  default:
-    fprintf(stderr, "pb_GetDevice: Invalid device type");
-    exit(-1);
-  }
-
-  /* Find the device */
-  {
-    pb_Device** p = ds;
-    cl_device_type type;
-    while (*p) {
-      clGetDeviceInfo(((cl_device_id) ((*p)->clDevice)), CL_DEVICE_TYPE,
-                      sizeof(cl_device_type), &type, NULL);
-      if (type == sought_type) break;
-    }
-
-    return *p;
-  }
-}
-
-pb_Device*
-pb_GetDevice(pb_Platform* pb_platform, struct pb_DeviceParam *device)
-{
-  pb_Device** ds = (pb_Device **) pb_GetDevices(pb_platform);
-
-  // The list of devices must be nonempty
-  if (ds == NULL || *ds == NULL) {
-    fprintf(stderr, "Error: No device is found in platform: name = %s, version = %s\n.", pb_platform->name, pb_platform->version);
-    exit(-1);
-  }
-
-  pb_Device *selected_device = NULL;
-
-  if (device != NULL) {
-    /* Use 'device' to select and return a device.
-     * If unable to select a device, fall
-     * back on the default selection mechanism. */
-    switch(device->criterion) {
-    case pb_Device_INDEX:
-      selected_device = select_device_by_index(ds, device->index);
-      break;
-    case pb_Device_GPU:
-    case pb_Device_CPU:
-    case pb_Device_ACCELERATOR:
-      selected_device = select_device_by_type(ds, device->criterion);
-      break;
-    case pb_Device_NAME:
-      selected_device = pb_SelectDeviceByName(ds, device->name);
-      break;
-    default:
-      fprintf(stderr, "pb_GetDevice: Invalid argument");
-      exit(-1);
-    }
-  }
-
-  /* By default or if user-specified selection failed,
-   * select the first device */
-  if (selected_device == NULL)
-    selected_device = *ds;
-
-  /* Set the in_use flag */
-  selected_device->in_use = 1;
-
-  return selected_device;
-}
-
-pb_Device*
-pb_GetDeviceByEnvVars(pb_Platform* pb_platform) {
-
-  /* Convert environment variables to a 'pb_DeviceParam' */
-  struct pb_DeviceParam *param = NULL;
-
-  char* device_num = getenv("PARBOIL_DEVICE_NUMBER");
-  if (device_num && strcmp(device_num, "")) {
-    int id = atoi(device_num);
-    param = pb_DeviceParam_index(id);
-  }
-  else {
-    char* device_name = getenv("PARBOIL_DEVICE_NAME");
-    if (device_name && strcmp(device_name, "")) {
-      param = pb_DeviceParam_name(strdup(device_name));
-    }
-    else {
-      char* device_type = getenv("PARBOIL_DEVICE_TYPE");
-      if (device_type && strcmp(device_type, "")) {
-        if (strcmp(device_type, "CPU") == 0)
-          param = pb_DeviceParam_cpu();
-        else if (strcmp(device_type, "GPU") == 0)
-          param = pb_DeviceParam_gpu();
-        else if (strcmp(device_type, "ACCELERATOR") == 0)
-          param = pb_DeviceParam_accelerator();
-      }
-    }
-  }
-
-  /* Get a device */
-  pb_Device *d = pb_GetDevice(pb_platform, param);
-  pb_FreeDeviceParam(param);
-
-  return d;
-}
-
-pb_Platform*
-pb_GetPlatformByEnvVars() {
-  char* name = getenv("PARBOIL_PLATFORM_NAME");
-  char* version = getenv("PARBOIL_PLATFORM_VERSION");
-
-  /* Create a pb_PlatformParam object (or NULL) representing the data from the
-   * environment variables */
-  struct pb_PlatformParam *platform;
-
-  if (name) {
-    if (version) {
-      platform = pb_PlatformParam(strdup(name), strdup(version));
-    }
-    else {
-      platform = pb_PlatformParam(strdup(name), NULL);
-    }
-  }
-  else {
-    platform = NULL;
-  }
-
-  /* Convert to a platform */
-  pb_Platform *p = pb_GetPlatform(platform);
-  pb_FreePlatformParam(platform);
-
-  return p;
-}
-
-/* Choose an OpenCL platform based on the given command-line parameters.
- * If NULL, use the default OpenCL platform. */
-pb_Platform*
-pb_GetPlatform(struct pb_PlatformParam *platform) {
-  if (platform != NULL) {
-    /* Try to use command-line parameters to choose platform */
-    char *name = platform->name;
-    char *version = platform->version;
-
-    if (!name) {
-      fprintf(stderr, "Internal error: NULL pointer");
-      exit(-1);
-    }
-
-    if (version) {
-      pb_Platform* p = pb_GetPlatformByNameAndVersion(name, version);
-      if (p) return p;
-    }
-
-    pb_Platform* p = pb_GetPlatformByName(name);
-    if (p) return p;
-  }
-
-  pb_Platform* p = pb_GetPlatformByName(NULL);
-  if (p == NULL) {
-    fprintf(stderr, "Error: No OpenCL platform in this system. Exiting.");
-    exit(-1);
-  }
-  return p;
-}
-
-extern void perf_init();
-extern void mxpa_scheduler_init();
-
-pb_Context*
-pb_InitOpenCLContext(struct pb_Parameters* parameters) {
-  pb_Platform* ps = pb_GetPlatform(parameters->platform);
-  if (!ps) return NULL;
-  pb_Device* ds = pb_GetDevice(ps, parameters->device);
-  if (!ds) return NULL;
-
-  /* HERE INITIALIZE TIMER */
-  perf_init();
-  mxpa_scheduler_init();
-
-  pb_Context* c = createContext(ps, ds);
-  pb_PrintPlatformInfo(c);
-
-  return c;
-}
-
-void
-pb_ReleaseOpenCLContext(pb_Context* c) {
-  pb_ReleasePlatforms();
-}
-
-void
-pb_PrintPlatformInfo(pb_Context* c) {
-  pb_Platform** ps = pb_GetPlatforms();
-  if (!ps) {
-    fprintf (stderr, "No platform found");
-    return;
-  }
-
-  printf ("********************************************************\n");
-  printf ("DETECTED OPENCL PLATFORMS AND DEVICES:\n");
-  printf ("--------------------------------------------------------\n");
-
-  while (*ps) {
-    printf ("PLATFORM = %s, %s", (*ps)->name, (*ps)->version); 
-    if (c->pb_platform == *ps) printf (" (SELECTED)");
-    printf ("\n");
-
-    pb_Device** ds = (pb_Device **) pb_GetDevices((*ps));
-    if (ds == NULL) {
-      printf ("  + (No devices)\n");
-    } else {
-      while (*ds) {
-        printf ("  + %d: %s", (*ds)->id, (*ds)->name);
-        if (c->pb_device == *ds) printf (" (SELECTED)");
-        printf ("\n");
-        ds++;
-      }
-    }
-
-    ps++;
-  }
-  printf ("********************************************************\n");
-}
-
-#ifdef MEASURE_KERNEL_TIME
-
-#undef clEnqueueNDRangeKernel
-
-extern void pin_trace_enable(char*);
-extern void pin_trace_disable(char*);
-
-cl_int
-pb_clEnqueueNDRangeKernel(cl_command_queue  q/* command_queue */,
-                       cl_kernel            k/* kernel */,
-                       cl_uint              d/* work_dim */,
-                       const size_t *       o/* global_work_offset */,
-                       const size_t *       gws/* global_work_size */,
-                       const size_t *       lws/* local_work_size */,
-                       cl_uint              n/* num_events_in_wait_list */,
-                       const cl_event *     w/* event_wait_list */,
-                       cl_event *           e/* event */) {
-
-  char buf[128];
-  struct timeval begin, end;
-  clGetKernelInfo(k, CL_KERNEL_FUNCTION_NAME, 128, buf, NULL);
-
-#if 0
-  int i;
-  for (i = 0; i  < d; i++) {
-    printf ("%s: %d: %d / %d\n", buf, i, gws[i], (lws == NULL ? 0 : lws[i]));
-  }
-#endif
-
-  clFinish(q); clFlush(q);
-  pin_trace_enable(buf);
-  gettimeofday(&begin, NULL);
-  cl_int result = clEnqueueNDRangeKernel(q, k, d, o, gws, lws, n, w, e);
-  clFinish(q); clFlush(q);
-  gettimeofday(&end, NULL);
-  pin_trace_disable(buf);
-  float t = (float)(end.tv_sec - begin.tv_sec) + (end.tv_usec - begin.tv_usec) / 1000000.0f;
-  fflush(stdout);
-  fflush(stderr);
-  printf ("PBTIMER: %s: %f\n", buf, t);
-  return result;
-}
-
-#endif
-
-void
-pb_sig_float(char* c, float* p, int sz) {
-  int i;
-  double s = 0.0;
-  for (i = 0; i < sz; i++) s += p[i] * (float)(i+1);
-  printf ("[Signature] %s = %lf\n", c, s);
-}
-
-void
-pb_sig_double(char* c, double* p, int sz) {
-  int i;
-  double s = 0.0;
-  for (i = 0; i < sz; i++) s += p[i];
-  printf ("[Signature] %s = %lf\n", c, s);
-}
-
-void
-pb_sig_short(char* c, short* p, int sz) {
-  int i;
-  long long int s = 0;
-  for (i = 0; i < sz; i++) s += p[i];
-  printf ("[Signature] %s = %lld\n", c, s);
-}
-
-void
-pb_sig_int(char* c, int* p, int sz) {
-  int i;
-  long long int s = 0;
-  for (i = 0; i < sz; i++) s += p[i];
-  printf ("[Signature] %s = %lld\n", c, s);
-}
-
-void
-pb_sig_uchar(char* c, unsigned char* p, int sz) {
-  int i;
-  unsigned long long int s = 0;
-  for (i = 0; i < sz; i++) s += p[i];
-  printf ("[Signature] %s = %lld\n", c, s);
-}
-
-void pb_sig_clmem(char* s, cl_command_queue command_queue, cl_mem memobj, int ty) {
-  size_t sz;
-  if (clGetMemObjectInfo(memobj, CL_MEM_SIZE, sizeof(size_t), &sz, NULL) != CL_SUCCESS) {
-    printf ("Something wrong.\n");
-    assert(0);
-  } else {
-    printf ("size = %d\n", sz);
-  }
-  char* hp; // = (char*) malloc(sz);
-  posix_memalign((void**)&hp, 64, sz);
-
-  clEnqueueReadBuffer (command_queue,
-  memobj,
-  CL_TRUE,
-  0,
-  sz,
-  hp,
-  0,
-  NULL,
-  NULL);
-
-  if (ty == T_FLOAT) pb_sig_float(s, (float*)hp, sz/sizeof(float));
-  if (ty == T_DOUBLE) pb_sig_double(s, (double*)hp, sz/sizeof(double));
-  if (ty == T_INT) pb_sig_int(s, (int*)hp, sz/sizeof(int));
-  if (ty == T_SHORT) pb_sig_short(s, (short*)hp, sz/sizeof(short));
-  if (ty == T_UCHAR) pb_sig_uchar(s, (unsigned char*)hp, sz/sizeof(char));
-
-  free(hp);
-}
 

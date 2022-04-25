@@ -10,68 +10,6 @@ extern "C" {
 
 #include <unistd.h>
 
-/* A platform as specified by the user on the command line */
-struct pb_PlatformParam {
-  char *name;                   /* The platform name.  This string is owned. */
-  char *version;                /* The platform version; may be NULL.
-                                 * This string is owned. */
-};
-
-/* Create a PlatformParam from the given strings.
- * 'name' must not be NULL.  'version' may be NULL.
- * If not NULL, the strings should have been allocated by malloc(),
- * and they will be owned by the returned object.
- */
-struct pb_PlatformParam *
-pb_PlatformParam(char *name, char *version);
-
-void
-pb_FreePlatformParam(struct pb_PlatformParam *);
-
-/* A criterion for how to select a device */
-enum pb_DeviceSelectionCriterion {
-  pb_Device_INDEX,             /* Enumerate the devices and select one
-                                * by its number */
-  pb_Device_CPU,                /* Select a CPU device */
-  pb_Device_GPU,                /* Select a GPU device  */
-  pb_Device_ACCELERATOR,        /* Select an accelerator device */
-  pb_Device_NAME                /* Select a device by name */
-};
-
-/* A device as specified by the user on the command line */
-struct pb_DeviceParam {
-  enum pb_DeviceSelectionCriterion criterion;
-  union {
-    int index;                  /* If criterion == pb_Device_INDEX,
-                                 * the index of the device */
-    char *name;                 /* If criterion == pb_Device_NAME,
-                                 * the name of the device.
-                                 * This string is owned. */
-  };
-};
-
-struct pb_DeviceParam *
-pb_DeviceParam_index(int index);
-
-struct pb_DeviceParam *
-pb_DeviceParam_cpu(void);
-
-struct pb_DeviceParam *
-pb_DeviceParam_gpu(void);
-
-struct pb_DeviceParam *
-pb_DeviceParam_accelerator(void);
-
-/* Create a by-name device selection criterion.
- * The string should have been allocated by malloc(), and it will will be
- * owned by the returned object.
- */
-struct pb_DeviceParam *
-pb_DeviceParam_name(char *name);
-
-void
-pb_FreeDeviceParam(struct pb_DeviceParam *);
-
 /* Command line parameters for benchmarks */
 struct pb_Parameters {
   char *outFile;		/* If not NULL, the raw output of the
@@ -81,10 +19,6 @@ struct pb_Parameters {
 				 * holding the input file(s) for the
 				 * computation.  The array and strings
 				 * are owned. */
-  struct pb_PlatformParam *platform; /* If not NULL, the platform
-                                      * specified on the command line. */
-  struct pb_DeviceParam *device; /* If not NULL, the device
-                                      * specified on the command line. */
 };
 
 /* Read command-line parameters.
@@ -103,9 +37,6 @@ pb_ReadParameters(int *_argc, char **argv);
  */
 void
 pb_FreeParameters(struct pb_Parameters *p);
-
-void
-pb_FreeStringArray(char **);
 
 /* Count the number of input files in a pb_Parameters instance.
  */
@@ -238,108 +169,8 @@ pb_DestroyTimerSet(struct pb_TimerSet * timers);
 void
 pb_SetOpenCL(void *clContextPtr, void *clCommandQueuePtr);
 
-
-typedef struct pb_Device_tag {
-  char* name;
-  void* clDevice;
-  int id;
-  unsigned int in_use;
-  unsigned int available;
-} pb_Device;
-
-struct pb_Context_tag;
-typedef struct pb_Context_tag pb_Context;
-
-typedef struct pb_Platform_tag {
-  char* name;
-  char* version;
-  void* clPlatform;
-  unsigned int in_use;
-  pb_Context** contexts;
-  pb_Device** devices;
-} pb_Platform;
-
-struct pb_Context_tag {
-  void* clPlatformId;
-  void* clContext;
-  void* clDeviceId;
-  pb_Platform* pb_platform;
-  pb_Device* pb_device;
-};
-
-// verbosely print out list of platforms and their devices to the console.
-pb_Platform**
-pb_GetPlatforms();
-
-// Choose a platform according to the given platform specification
-pb_Platform*
-pb_GetPlatform(struct pb_PlatformParam *platform);
-
-// choose a platform: by name, name & version
-pb_Platform*
-pb_GetPlatformByName(const char* name);
-
-pb_Platform*
-pb_GetPlatformByNameAndVersion(const char* name, const char* version);
-
-// Choose a device according to the given device specification
-pb_Device*
-pb_GetDevice(pb_Platform* pb_platform, struct pb_DeviceParam *device);
-
-pb_Device**
-pb_GetDevices(pb_Platform* pb_platform);
-
-// choose a device by name.
-pb_Device*
-pb_GetDeviceByName(pb_Platform* pb_platform, const char* name);
-
-pb_Platform*
-pb_GetPlatformByEnvVars();
-
-pb_Context*
-pb_InitOpenCLContext(struct pb_Parameters* parameters);
-
-void
-pb_ReleasePlatforms();
-
-void
-pb_ReleaseContext(pb_Context* c);
-
-void
-pb_PrintPlatformInfo(pb_Context* c);
-
-void
-perf_init();
-
-#define MEASURE_KERNEL_TIME
-
-#ifdef MEASURE_KERNEL_TIME
-
-#include <CL/cl.h>
-#define clEnqueueNDRangeKernel(q,k,d,o,dg,db,a,b,c) pb_clEnqueueNDRangeKernel((q), (k), (d), (o), (dg), (db), (a), (b), (c))
-cl_int
-pb_clEnqueueNDRangeKernel(cl_command_queue /* command_queue */,
-                       cl_kernel        /* kernel */,
-                       cl_uint          /* work_dim */,
-                       const size_t *   /* global_work_offset */,
-                       const size_t *   /* global_work_size */,
-                       const size_t *   /* local_work_size */,
-                       cl_uint          /* num_events_in_wait_list */,
-                       const cl_event * /* event_wait_list */,
-                       cl_event *       /* event */);
-#endif
-
-enum { T_FLOAT, T_DOUBLE, T_SHORT, T_INT, T_UCHAR };
-void pb_sig_float(char*, float*, int);
-void pb_sig_double(char*, double*, int);
-void pb_sig_short(char*, short*, int);
-void pb_sig_int(char*, int*, int);
-void pb_sig_uchar(char*, int*, unsigned int);
-void pb_sig_clmem(char*, cl_command_queue, cl_mem, int);
-
 #ifdef __cplusplus
 }
 #endif
 
 #endif //PARBOIL_HEADER
-

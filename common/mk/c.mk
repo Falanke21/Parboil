@@ -4,14 +4,11 @@
 
 LANG_CFLAGS=-I$(PARBOIL_ROOT)/common/include -I/usr/local/cuda/include
 LANG_CXXFLAGS=$(LANG_CFLAGS)
-#LANG_LDFLAGS=-L$(PARBOIL_ROOT)/common/lib -lparboil
 LANG_LDFLAGS=
 
-# Note, OPT_CFLAGS is used for C and C++
-
-CFLAGS=$(OPT_CFLAGS) $(LANG_CFLAGS) $(PLATFORM_CFLAGS) $(APP_CFLAGS)
-CXXFLAGS=$(OPT_CFLAGS) $(LANG_CXXFLAGS) $(PLATFORM_CXXFLAGS) $(APP_CXXFLAGS)
-LDFLAGS=$(OPT_LDFLAGS) $(LANG_LDFLAGS) $(PLATFORM_LDFLAGS) $(APP_LDFLAGS)
+CFLAGS=$(LANG_CFLAGS) $(PLATFORM_CFLAGS) $(APP_CFLAGS) -O3 -maltivec
+CXXFLAGS=$(LANG_CXXFLAGS) $(PLATFORM_CXXFLAGS) $(APP_CXXFLAGS)
+LDFLAGS=$(LANG_LDFLAGS) $(PLATFORM_LDFLAGS) $(APP_LDFLAGS)
 
 # Rules common to all makefiles
 
@@ -53,23 +50,6 @@ endif
 
 OBJS = $(call INBUILDDIR,$(SRCDIR_OBJS))
 
-ifeq ($(OPTIMIZATION),0)
-OPT_CFLAGS=-O0
-OPT_LDFLAGS=
-endif
-ifeq ($(OPTIMIZATION),1)
-OPT_CFLAGS=-O1
-OPT_LDFLAGS=
-endif
-ifeq ($(OPTIMIZATION),2)
-OPT_CFLAGS=-O2
-OPT_LDFLAGS=
-endif
-ifeq ($(OPTIMIZATION),3)
-OPT_CFLAGS=-O3 -maltivec
-OPT_LDFLAGS=
-endif
-
 ########################################
 # Rules
 ########################################
@@ -86,19 +66,16 @@ clean :
 	rm -f $(BUILDDIR)/*
 	if [ -d $(BUILDDIR) ]; then rmdir $(BUILDDIR); fi
 
-$(BIN) : $(OBJS) $(BUILDDIR)/parboil.o $(BUILDDIR)/args.o
+$(BIN) : $(OBJS) $(BUILDDIR)/parboil.o
 	$(CXX) $^ -o $@ $(LDFLAGS)
-
-$(BUILDDIR)/parboil.o : $(PARBOIL_ROOT)/common/src/parboil.c ${BUILDDIR}
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(BUILDDIR)/args.o : $(PARBOIL_ROOT)/common/src/args.c ${BUILDDIR}
-	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILDDIR) :
 	mkdir -p $(BUILDDIR)
 
 $(BUILDDIR)/%.o : $(SRCDIR)/%.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILDDIR)/parboil.o: $(PARBOIL_ROOT)/common/src/parboil.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILDDIR)/%.o : $(SRCDIR)/%.cc

@@ -15,10 +15,3 @@ PLATFORM_CXXFLAGS =
 LINKER = g++
 PLATFORM_LDFLAGS = -lm -lpthread
 
-.PHONY: KERNELS
-KERNELS :
-
-resolvelibOpenCL:
-	@echo "Resolving OpenCL library..."
-	@$(shell echo $(RUNTIME_ENV)) LD_LIBRARY_PATH=$(OPENCL_LIB_PATH) ldd $(BIN) | grep OpenCL
-

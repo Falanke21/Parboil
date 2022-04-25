@@ -39,17 +39,6 @@ def many_uint16(count):
                 return ns
         return read
 
-def many_uint32(count):
-        """Create a reader function that reads a fixed-size sequence of
-        32-bit unsigned integers from f."""
-        def read(f):
-                s = f.read(4*count)
-		if len(s) != 4*count:
-			raise ValueError, "Unexpected end of file"
-                ns = struct.unpack("<%dI" % count, s)
-                return ns
-        return read
-
 def many_float(count):
         """Create a reader function that reads a fixed-size sequence of
         floats from f."""
