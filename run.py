@@ -3,13 +3,13 @@ import subprocess
 from statistics import median
 
 if __name__ == "__main__":
-	count = 50
+	count = 20
 	auto_vec_times = []
 	
 	print("Running")
 	for i in range(count):
 		result = subprocess.run(
-			["./parboil", "run", "mri-gridding", "base", "small"],
+			["./parboil", "run", "mri-gridding", "base", "small", "icc"],
 			stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
 		splited_lst = result.stdout.decode("utf-8").split()
 		find_index = splited_lst.index("Compute")
