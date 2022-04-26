@@ -187,29 +187,30 @@ int gridding_Gold(unsigned int n, parameters params, ReconstructionSample* __res
                   __m128 vec_v = vec_dy2dz2 + vec_dx2;
                   if (vec_v[0]<cutoff2 && vec_v[1]<cutoff2 && vec_v[2]<cutoff2 && vec_v[3]<cutoff2) 
                   {
-                    __m128 vec_idx = vec_nx + (float)idx0;
-                    __m128 vec_val = beta * _mm_sqrt_ps(1.0 - (vec_v * _1overCutoff2));
+                    __m128 vec_idx = vec_nx + _mm_set1_ps((float)idx0);
+                    __m128 vec_val = _mm_set1_ps(beta) * _mm_sqrt_ps(_mm_set1_ps(1.0)
+                                     - (vec_v * _mm_set1_ps(_1overCutoff2)));
                     __m128 vec_z = vec_val * vec_val;
                     __m128 vec_num = (vec_z * (vec_z * (vec_z * (vec_z * (vec_z * (vec_z * (vec_z * (vec_z * (vec_z * (vec_z * (vec_z * (vec_z * (vec_z *
                                                                                                  (vec_z *
-                                                                                                  0.210580722890567e-22f +
-                                                                                                  0.380715242345326e-19f) +
-                                                                                                 0.479440257548300e-16f) +
-                                                                                            0.435125971262668e-13f) +
-                                                                                       0.300931127112960e-10f) +
-                                                                                  0.160224679395361e-7f) +
-                                                                             0.654858370096785e-5f) +
-                                                                        0.202591084143397e-2f) +
-                                                                   0.463076284721000e0f) + 0.754337328948189e2f) +
-                                                         0.830792541809429e4f) + 0.571661130563785e6f) +
-                                               0.216415572361227e8f) + 0.356644482244025e9f) +
-                                     0.144048298227235e10f);
-                    __m128 vec_den = (vec_z * (vec_z * (vec_z - 0.307646912682801e4f) + 0.347626332405882e7f) -
-                                     0.144048298227235e10f);
-                    __m128 vec_rValue = (0 - vec_num) / vec_den;
-                    __m128 vec_w = vec_rValue * pt.sdc;
-                    __m128 vec_w_real_product = vec_w * pt.real;
-                    __m128 vec_w_imag_product = vec_w * pt.imag;
+                                                                                                  _mm_set1_ps(0.210580722890567e-22f) +
+                                                                                                  _mm_set1_ps(0.380715242345326e-19f)) +
+                                                                                                 _mm_set1_ps(0.479440257548300e-16f)) +
+                                                                                            _mm_set1_ps(0.435125971262668e-13f)) +
+                                                                                       _mm_set1_ps(0.300931127112960e-10f)) +
+                                                                                  _mm_set1_ps(0.160224679395361e-7f)) +
+                                                                             _mm_set1_ps(0.654858370096785e-5f)) +
+                                                                        _mm_set1_ps(0.202591084143397e-2f)) +
+                                                                   _mm_set1_ps(0.463076284721000e0f)) + _mm_set1_ps(0.754337328948189e2f)) +
+                                                         _mm_set1_ps(0.830792541809429e4f)) + _mm_set1_ps(0.571661130563785e6f)) +
+                                               _mm_set1_ps(0.216415572361227e8f)) + _mm_set1_ps(0.356644482244025e9f)) +
+                                     _mm_set1_ps(0.144048298227235e10f));
+                    __m128 vec_den = (vec_z * (vec_z * (vec_z - _mm_set1_ps(0.307646912682801e4f)) + _mm_set1_ps(0.347626332405882e7f)) -
+                                     _mm_set1_ps(0.144048298227235e10f));
+                    __m128 vec_rValue = (_mm_set1_ps(0) - vec_num) / vec_den;
+                    __m128 vec_w = vec_rValue * _mm_set1_ps(pt.sdc);
+                    __m128 vec_w_real_product = vec_w * _mm_set1_ps(pt.real);
+                    __m128 vec_w_imag_product = vec_w * _mm_set1_ps(pt.imag);
                     for (int rtcheck_i = 0; rtcheck_i < stride; rtcheck_i++) {
                       idx = (unsigned int)vec_idx[rtcheck_i];
                       gridData[idx].real += vec_w_real_product[rtcheck_i];

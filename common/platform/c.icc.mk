@@ -13,5 +13,5 @@ CXX = icpc
 PLATFORM_CXXFLAGS = 
   
 LINKER = icpc
-PLATFORM_LDFLAGS = -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -lrt -lpthread
+PLATFORM_LDFLAGS = -liomp5 -lrt -lpthread
 
